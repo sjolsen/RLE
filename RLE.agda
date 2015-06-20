@@ -11,17 +11,16 @@ module RLE where
   open import Relation.Binary.PropositionalEquality
   open import Relation.Nullary
   open import Relation.Nullary.Decidable
+  open import Relation.Nullary.Negation
 
 -- Data definitions
 
   record Run : Set where
     constructor run
     field
-      value : Bit
-      len-1 : ℕ
-
-    len : ℕ
-    len = suc len-1
+      value     : Bit
+      length    : ℕ
+      {nonzero} : False (length ℕ-≟ 0)
   open Run
 
   RLE-Seq : ℕ → Set
@@ -34,12 +33,12 @@ module RLE where
            Σ[ b ∈ ℕ ]
            Σ[ r ∈ Run ]
            Σ[ j ∈ Vec Bit b ]
-           a + b ≡ suc m × len r ≡ a
-  popRun zero    (x ∷ []) = 1 , 0 , run x 0 , [] , refl , refl
+           a + b ≡ suc m × length r ≡ a
+  popRun zero    (x ∷ []) = 1 , 0 , run x 1 , [] , refl , refl
   popRun (suc m) (x ∷ l)  = let (a , b , r , j , p₁ , p₂) = popRun m l in
     case (x Digit-≟ value r) of λ {
-      (yes _) → suc a , b       , run x a , j , cong (_+_ 1) p₁   , refl ;
-      (no  _) → suc 0 , (suc m) , run x 0 , l , cong (_+_ 2) refl , refl
+      (yes _) → suc a , b       , run x (suc a) , j , cong (_+_ 1) p₁   , refl ;
+      (no  _) → suc 0 , (suc m) , run x (suc 0) , l , cong (_+_ 2) refl , refl
     }
 
   encode : ∀ m → Vec Bit m → Σ[ n ∈ ℕ ] RLE-Seq n
@@ -48,9 +47,9 @@ module RLE where
       open import Induction.WellFounded
       open import Induction.Nat
 
-      smaller : ∀ a b m r → a + b ≡ suc m → len r ≡ a → b <′ suc m
-      smaller zero     _ _ _ _ ()
-      smaller (suc a′) b m r x _ = s≤′s b m (+→≤′-lemmaʳ a′ b m (suc-inj x))
+      smaller : ∀ a b m r → a + b ≡ suc m → length r ≡ a → b <′ suc m
+      smaller zero     _ _ r _ p = contradiction p (toWitnessFalse (nonzero r))
+      smaller (suc a′) b m _ x _ = s≤′s b m (+→≤′-lemmaʳ a′ b m (suc-inj x))
 
       go : ∀ m → _ → Vec Bit m → Σ[ n ∈ ℕ ] RLE-Seq n
       go zero    encode′ [] = 0 , []
@@ -62,4 +61,4 @@ module RLE where
   decode : ∀ n → RLE-Seq n → Σ[ m ∈ ℕ ] Vec Bit m
   decode 0       []      = 0 , []
   decode (suc n) (x ∷ l) = let (m , rest) = decode n l in
-    len x + m , (replicate {n = len x} (value x)) ++ rest
+    length x + m , (replicate {n = length x} (value x)) ++ rest
